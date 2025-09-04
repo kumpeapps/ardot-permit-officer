@@ -1,0 +1,97 @@
+def get_permit_officer_by_district(district: int) -> dict:
+    """
+    Get permit officer info for a single district (1-10).
+    """
+    return get_permit_officer_info(district)
+import requests
+from bs4 import BeautifulSoup
+from typing import List, Dict
+
+BASE_URL = "https://ardot.gov/districts/district-{}"  # 1-10
+
+def get_permit_officer_info(district: int) -> Dict[str, str]:
+    import re
+    officer_info = {"district": str(district), "name": "", "email": "", "phone": ""}
+    # ...existing code...
+    """
+    Scrape the permit officer's name, email, and phone number from a district page.
+    """
+    url = BASE_URL.format(district)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    }
+    resp = requests.get(url, headers=headers, timeout=10)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    officer_info = {"district": str(district), "name": "", "email": "", "phone": ""}
+    import re
+    # Find the 'Contacts' section
+    import re
+    contacts_header = None
+    for h in soup.find_all(['h2', 'h3', 'h4']):
+        if 'contact' in h.get_text(strip=True).lower():
+            contacts_header = h
+            break
+    if contacts_header:
+        # Collect all text and <a> tags after the contacts header, up to the next header
+        sib = contacts_header.next_sibling
+        lines = []
+        mailtos = []
+        while sib:
+            if hasattr(sib, 'name') and sib.name and sib.name.startswith('h'):
+                break
+            # Collect mailto links
+            if hasattr(sib, 'find_all'):
+                for a in sib.find_all('a', href=True):
+                    href = a['href']
+                    if href and href.startswith('mailto:'):
+                        mailtos.append((a.get_text(strip=True), href.replace('mailto:', '').strip()))
+            text = sib.get_text(' ', strip=True) if hasattr(sib, 'get_text') else str(sib)
+            for line in text.splitlines():
+                line = line.strip()
+                if line:
+                    lines.append(line)
+            sib = sib.next_sibling
+        # Scan for 'Permit Officer' and extract info from the same or nearby lines
+        for i, line in enumerate(lines):
+            if 'permit officer' in line.lower():
+                # Try to extract name (before 'Permit Officer')
+                name_match = re.search(r'([A-Za-z .\'-]+)\s*Permit Officer', line)
+                if name_match:
+                    officer_info['name'] = name_match.group(1).strip()
+                # Try to extract phone from this and next 2 lines
+                for j in range(i, min(i+3, len(lines))):
+                    phone_match = re.search(r'(\(\d{3}\) ?\d{3}-?\d{4})', lines[j])
+                    if phone_match and not officer_info['phone']:
+                        officer_info['phone'] = phone_match.group(1).strip()
+                # Try to find the closest mailto link (by name match)
+                for name, email in mailtos:
+                    if officer_info['name'] and officer_info['name'].split()[0].lower() in name.lower():
+                        officer_info['email'] = email
+                        break
+                break
+    # Fallback: check og:description meta tag for contact info if nothing found
+    if not officer_info["name"] or not officer_info["email"] or not officer_info["phone"]:
+        # Try regex on raw HTML for og:description
+        desc_match = re.search(r'<meta[^>]+property=["\"]og:description["\"][^>]+content=["\"]([^"\"]+)["\"]', resp.text)
+        if desc_match:
+            desc = desc_match.group(1)
+            po_match = re.search(r'([A-Za-z .\'-]+)Permit Officer([A-Za-z0-9@.\-() ]+)', desc)
+            if po_match:
+                officer_info['name'] = po_match.group(1).strip()
+                rest = po_match.group(2)
+                email_match = re.search(r'([\w.\-]+@[\w.\-]+)', rest)
+                phone_match = re.search(r'(\(\d{3}\) ?\d{3}-?\d{4})', rest)
+                if email_match:
+                    officer_info['email'] = email_match.group(1).strip()
+                if phone_match:
+                    officer_info['phone'] = phone_match.group(1).strip()
+    return officer_info
+    return officer_info
+
+def get_all_permit_officers() -> List[Dict[str, str]]:
+    """
+    Get permit officer info for all 10 districts.
+    """
+    return [get_permit_officer_info(i) for i in range(1, 11)]
