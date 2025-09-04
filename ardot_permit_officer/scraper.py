@@ -1,8 +1,31 @@
+from dataclasses import dataclass
+
+@dataclass
+class Officer:
+    district: str
+    name: str
+    email: str
+    phone: str
+
 def get_permit_officer_by_district(district: int) -> dict:
     """
     Get permit officer info for a single district (1-10).
+    By default returns a dict. To get an Officer object, use mode='object'.
     """
     return get_permit_officer_info(district)
+
+def get_permit_officer_by_district_obj(district: int) -> Officer:
+    """
+    Get permit officer info for a single district (1-10) as an Officer object.
+    """
+    info = get_permit_officer_info(district)
+    return Officer(**info)
+
+def get_all_permit_officers_obj() -> list:
+    """
+    Get permit officer info for all 10 districts as Officer objects.
+    """
+    return [Officer(**get_permit_officer_info(i)) for i in range(1, 11)]
 import requests
 from bs4 import BeautifulSoup
 from typing import List, Dict
